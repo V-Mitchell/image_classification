@@ -1,0 +1,33 @@
+model:
+  backbone:
+    network: "ResNet18"
+  neck:
+    network: "PANet"
+    expansion: 1
+    input_channels: [64, 128, 256, 512]
+  head:
+    network: "AnchorlessHead"
+    num_classes: 90
+    input_channels: [64, 128, 256, 512]
+    num_prototypes: 8
+    bg_index: 0
+    image_size: [640, 640]
+
+dataloader:
+  dataset_path: "/home/lorrentz/DATA/cifar-10/"
+  batch_size: 4
+  shuffle: True
+  num_workers: 4
+  pin_memory: False
+  drop_last: True
+  persistent_workers: False
+
+training:
+  epochs: 50
+  validate_period: 5
+  device: 0
+  log_path: "./log"
+  optimizer:
+    type: "SGD"
+    lr: 0.001
+    momentum: 0.9
