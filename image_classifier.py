@@ -155,9 +155,13 @@ class TrainingLogger():
 
 def weights_init(m):
     if isinstance(m, torch.nn.Conv2d):
+        torch.nn.init.kaiming_uniform_(m.weight)
+        if m.bias is not None:
+            torch.nn.init.constant_(m.bias, 0.01)
+    elif isinstance(m, torch.nn.Linear):
         torch.nn.init.xavier_uniform_(m.weight)
         if m.bias is not None:
-            m.bias.data.fill_(0.01)
+            torch.nn.init.constant_(m.bias, 0.01)
 
 
 def bce_loss(preds, labels):
