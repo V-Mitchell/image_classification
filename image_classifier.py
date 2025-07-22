@@ -3,7 +3,6 @@ import shutil
 import logging
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torchvision.utils import save_image
@@ -11,11 +10,10 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from datetime import datetime
 from tqdm import tqdm
 
+from models.classification_models import get_model
+from utils.dict import remove_key
+
 LABELS = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
-
-
-def remove_key(d, k):
-    return {i: d[i] for i in d if i not in k}
 
 
 class CIFAR10Dataset(Dataset):
@@ -155,224 +153,6 @@ class TrainingLogger():
         return self.log_path
 
 
-class SimpleModel(nn.Module):
-    def __init__(self):
-        super(ClassifierModel, self).__init__()
-        self.conv0 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv1 = nn.Conv2d(6, 16, 5)
-        self.fc0 = nn.Linear(16 * 5 * 5, 120)
-        self.fc1 = nn.Linear(120, 84)
-        self.fc2 = nn.Linear(84, 10)
-
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv0(x)))
-        x = self.pool(F.relu(self.conv1(x)))
-        x = x.view(-1, 16 * 5 * 5)  # 5x5 feature map
-        x = F.relu(self.fc0(x))
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-
-class ClassifierModel(nn.Module):
-    def __init__(self):
-        super(ClassifierModel, self).__init__()
-        self.conv0 = nn.Conv2d(3, 6, 5)
-        self.conv1 = nn.Conv2d(6, 12, 5)
-        self.conv2 = nn.Conv2d(12, 24, 5)
-        self.fc0 = nn.Linear(24 * 20 * 20, 120)
-        self.fc1 = nn.Linear(120, 84)
-        self.fc2 = nn.Linear(84, 10)
-
-    def forward(self, x):
-        x = F.relu(self.conv0(x))
-        # print(x.shape)
-        x = F.relu(self.conv1(x))
-        # print(x.shape)
-        x = F.relu(self.conv2(x))
-        # print(x.shape)
-        x = x.view(-1, 24 * 20 * 20)
-        x = F.relu(self.fc0(x))
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-
-class Bottleneck(nn.Module):
-    expansion = 4
-
-    def __init__(self, in_channels, out_channels, stride=1, first_block=False):
-        super(Bottleneck, self).__init__()
-
-        self.conv0 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
-        self.bn0 = nn.BatchNorm2d(out_channels)
-
-        self.conv1 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-
-        self.conv2 = nn.Conv2d(out_channels,
-                               out_channels * self.expansion,
-                               kernel_size=1,
-                               stride=1,
-                               padding=0)
-        self.bn2 = nn.BatchNorm2d(out_channels * self.expansion)
-
-        self.relu = nn.LeakyReLU()  #nn.ReLU()
-        self.downsample = nn.Sequential()
-        if first_block:
-            self.downsample = nn.Sequential(
-                nn.Conv2d(in_channels,
-                          out_channels * self.expansion,
-                          kernel_size=1,
-                          stride=stride,
-                          padding=0), nn.BatchNorm2d(out_channels * self.expansion))
-
-    def forward(self, x):
-        y = self.relu(self.bn0(self.conv0(x)))
-        y = self.relu(self.bn1(self.conv1(y)))
-        y = self.bn2(self.conv2(y))
-        y += self.downsample(x)
-        return self.relu(y)
-
-
-class BasicBlock(nn.Module):
-    expansion = 1
-
-    def __init__(self, in_channels, out_channels, stride=1, first_block=False):
-        super(BasicBlock, self).__init__()
-
-        self.conv0 = nn.Conv2d(in_channels,
-                               out_channels,
-                               kernel_size=3,
-                               stride=stride,
-                               padding=1,
-                               bias=False)
-        self.bn0 = nn.BatchNorm2d(out_channels)
-
-        self.conv1 = nn.Conv2d(out_channels,
-                               out_channels,
-                               kernel_size=3,
-                               stride=1,
-                               padding=1,
-                               bias=False)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-
-        self.relu = nn.LeakyReLU()  #nn.ReLU()
-        self.stride = stride
-        self.downsample = nn.Sequential()
-        if first_block and stride != 1:
-            self.downsample = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, padding=0),
-                nn.BatchNorm2d(out_channels))
-
-    def forward(self, x):
-        y = self.relu(self.bn0(self.conv0(x)))
-        y = self.bn1(self.conv1(y))
-        y += self.downsample(x)
-        return self.relu(y)
-
-
-class ResNet(nn.Module):
-    in_channels = 64
-
-    def __init__(self,
-                 ResBlock,
-                 blocks_list,
-                 out_channels_list=[64, 128, 256, 512],
-                 num_channels=3):
-        super(ResNet, self).__init__()
-
-        self.conv0 = nn.Conv2d(num_channels,
-                               self.in_channels,
-                               kernel_size=5,
-                               stride=2,
-                               padding=2,
-                               bias=False)
-        self.bn0 = nn.BatchNorm2d(self.in_channels)
-        self.relu = nn.ReLU()
-        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
-        self.layer0 = self.create_layer(ResBlock,
-                                        blocks_list[0],
-                                        self.in_channels,
-                                        out_channels_list[0],
-                                        stride=1)
-        self.layer1 = self.create_layer(ResBlock,
-                                        blocks_list[1],
-                                        out_channels_list[0] * ResBlock.expansion,
-                                        out_channels_list[1],
-                                        stride=2)
-        self.layer2 = self.create_layer(ResBlock,
-                                        blocks_list[2],
-                                        out_channels_list[1] * ResBlock.expansion,
-                                        out_channels_list[2],
-                                        stride=2)
-        self.layer3 = self.create_layer(ResBlock,
-                                        blocks_list[3],
-                                        out_channels_list[2] * ResBlock.expansion,
-                                        out_channels_list[3],
-                                        stride=2)
-
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(out_channels_list[3], 10)
-
-    def forward(self, x):
-        x = self.relu(self.bn0(self.conv0(x)))
-        # print(x.shape)
-        x = self.max_pool(x)
-        # print(x.shape)
-        x = self.layer0(x)
-        # print(x.shape)
-        x = self.layer1(x)
-        # print(x.shape)
-        x = self.layer2(x)
-        # print(x.shape)
-        x = self.layer3(x)
-        # print(x.shape)
-
-        x = self.avgpool(x)
-        # print(x.shape)
-        x = x.view(x.shape[0], -1)
-        # print(x.shape)
-        x = self.fc(x)
-        return x
-
-    def create_layer(self, ResBlock, blocks, in_channels, out_channels, stride=1):
-        layers = []
-        for i in range(blocks):
-            if i == 0:
-                layers.append(ResBlock(in_channels, out_channels, stride=stride, first_block=True))
-            else:
-                layers.append(ResBlock(out_channels * ResBlock.expansion, out_channels))
-
-        return nn.Sequential(*layers)
-
-
-def ResNet18(channels=3):
-    return ResNet(BasicBlock, [2, 2, 2, 2], num_channels=channels)
-
-
-def ResNet34(channels=3):
-    return ResNet(BasicBlock, [3, 4, 6, 3], num_channels=channels)
-
-
-def ResNet50(channels=3):
-    return ResNet(Bottleneck, [3, 4, 6, 3], num_channels=channels)
-
-
-def ResNet101(channels=3):
-    return ResNet(Bottleneck, [3, 4, 23, 3], num_channels=channels)
-
-
-def ResNet152(channels=3):
-    return ResNet(Bottleneck, [3, 8, 36, 3], num_channels=channels)
-
-
-def get_model(cfg):
-    return ClassifierModel()
-
-
 def weights_init(m):
     if isinstance(m, torch.nn.Conv2d):
         torch.nn.init.xavier_uniform_(m.weight)
@@ -380,7 +160,7 @@ def weights_init(m):
             m.bias.data.fill_(0.01)
 
 
-def get_loss(preds, labels):
+def bce_loss(preds, labels):
     label_one_hot = F.one_hot(labels.long(), 10).float()
     loss = F.binary_cross_entropy_with_logits(preds, label_one_hot, reduction="mean")
     return loss
@@ -395,7 +175,7 @@ def train_epoch(epoch, model, dataloader, optimizer, device, logger):
         labels = labels.to(device=device)
         images = images.to(device=device)
         preds = model(images)
-        loss = get_loss(preds, labels)
+        loss = bce_loss(preds, labels)
         loss.backward()
         optimizer.step()
 
@@ -428,25 +208,23 @@ def validate(epoch, model, dataloader, device, logger):
 
 
 def train(cfg):
-    # configure for deterministic behavior
-    seed = 0xffff_ffff_ffff_ffff
-    torch.manual_seed(seed)
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
+    if cfg["training"]["deterministic"]:
+        seed = 0xffff_ffff_ffff_ffff
+        torch.manual_seed(seed)
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
 
     device = torch.device("cuda")
-    model = ResNet34()  # get_model(cfg["model"])
+    model = get_model(cfg["model"])
     model = model.to(device=device)
     model.apply(weights_init)
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("Model Parameters: {params}".format(params=num_params))
 
-    optimizer = None
+    optimizer = get_optimizer(cfg["training"]["optimizer"], model.parameters())
+    scheduler = None
     if "scheduler" in cfg["training"]:
-        optimizer = get_scheduler(cfg["training"]["scheduler"],
-                                  get_optimizer(cfg["training"]["optimizer"], model.parameters()))
-    else:
-        optimizer = get_optimizer(cfg["training"]["optimizer"], model.parameters())
+        scheduler = get_scheduler(cfg["training"]["scheduler"], optimizer)
 
     train_dataloader = get_dataloader(cfg["dataloader"])
     test_dataloader = get_dataloader(cfg["dataloader"], True)
@@ -460,6 +238,9 @@ def train(cfg):
                 "validate_period"] > 0 and epoch % cfg["training"]["validate_period"] == 0:
             validate(epoch, model, test_dataloader, device, logger)
             logger.save_checkpoint(epoch, model)
+
+        if scheduler is not None:
+            scheduler.step()
 
     # final validation and model save
     validate(epoch, model, test_dataloader, device, logger)
