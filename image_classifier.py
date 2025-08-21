@@ -166,7 +166,11 @@ def weights_init(m):
 
 def bce_loss(preds, labels):
     label_one_hot = F.one_hot(labels.long(), 10).float()
-    loss = F.binary_cross_entropy_with_logits(preds, label_one_hot, reduction="mean")
+    loss = F.binary_cross_entropy(
+        F.softmax(preds, dim=1),
+        label_one_hot,
+        reduction="mean",
+    )
     return loss
 
 
@@ -198,8 +202,8 @@ def validate(epoch, model, dataloader, device, logger):
         labels = labels.to(device=device)
         images = images.to(device=device)
         preds = model(images)
-        preds = F.sigmoid(preds)
-        preds_argmax = torch.argmax(preds, -1)
+        preds = F.softmax(preds, dim=1)
+        preds_argmax = torch.argmax(preds, 1)
         confusion_mat[labels.item()][preds_argmax.item()] += 1
 
     tp = confusion_mat.trace()
@@ -244,6 +248,7 @@ def train(cfg):
             logger.save_checkpoint(epoch, model)
 
         if scheduler is not None:
+            logger.log_dict({"lr": scheduler.get_last_lr()[0]})
             scheduler.step()
 
     # final validation and model save
