@@ -195,7 +195,6 @@ class DenseBlock(nn.Module):
         self.relu = nn.ReLU()
         self.layers = []
         for i in range(num_layers):
-            # print(i, sum(channels), "->", int(sum(channels) * compression) + growth_rate)
             self.layers.append(
                 nn.Sequential(
                     nn.BatchNorm2d(sum(channels)), nn.ReLU(),
@@ -208,79 +207,15 @@ class DenseBlock(nn.Module):
                               padding=1)))
             self.out_channels = int(sum(channels) * compression) + growth_rate
             channels.append(int(sum(channels) * compression) + growth_rate)
-            print(i, channels)
 
         self.num_layers = num_layers
         self.layers = nn.ModuleList(self.layers)
-
-        # self.comp_bn0 = nn.BatchNorm2d(sum(channels))
-        # self.comp_conv0 = nn.Conv2d(sum(channels), int(sum(channels) * compression), kernel_size=1)
-        # self.bn0 = nn.BatchNorm2d(int(sum(channels) * compression))
-        # self.conv0 = nn.Conv2d(int(sum(channels) * compression),
-        #                        int(sum(channels) * compression) + growth_rate,
-        #                        kernel_size=3,
-        #                        stride=1,
-        #                        padding=1)
-        # channels.append(int(sum(channels) * compression) + growth_rate)
-
-        # print(sum(channels), "->", int(sum(channels) * compression) + growth_rate)
-        # self.comp_bn1 = nn.BatchNorm2d(sum(channels))
-        # self.comp_conv1 = nn.Conv2d(sum(channels), int(sum(channels) * compression), kernel_size=1)
-        # self.bn1 = nn.BatchNorm2d(int(sum(channels) * compression))
-        # self.conv1 = nn.Conv2d(int(sum(channels) * compression),
-        #                        int(sum(channels) * compression) + growth_rate,
-        #                        kernel_size=3,
-        #                        stride=1,
-        #                        padding=1)
-        # channels.append(int(sum(channels) * compression) + growth_rate)
-
-        # print(sum(channels), "->", int(sum(channels) * compression) + growth_rate)
-        # self.comp_bn2 = nn.BatchNorm2d(sum(channels))
-        # self.comp_conv2 = nn.Conv2d(sum(channels), int(sum(channels) * compression), kernel_size=1)
-        # self.bn2 = nn.BatchNorm2d(int(sum(channels) * compression))
-        # self.conv2 = nn.Conv2d(int(sum(channels) * compression),
-        #                        int(sum(channels) * compression) + growth_rate,
-        #                        kernel_size=3,
-        #                        stride=1,
-        #                        padding=1)
-        # channels.append(int(sum(channels) * compression) + growth_rate)
-
-        # print(sum(channels), "->", int(sum(channels) * compression) + growth_rate)
-        # self.comp_bn3 = nn.BatchNorm2d(sum(channels))
-        # self.comp_conv3 = nn.Conv2d(sum(channels), int(sum(channels) * compression), kernel_size=1)
-        # self.bn3 = nn.BatchNorm2d(int(sum(channels) * compression))
-        # self.conv3 = nn.Conv2d(int(sum(channels) * compression),
-        #                        int(sum(channels) * compression) + growth_rate,
-        #                        kernel_size=3,
-        #                        stride=1,
-        #                        padding=1)
-        # channels.append(int(sum(channels) * compression) + growth_rate)
-
-        # print(sum(channels), "->", int(sum(channels) * compression) + growth_rate)
-        # self.comp_bn4 = nn.BatchNorm2d(sum(channels))
-        # self.comp_conv4 = nn.Conv2d(sum(channels), int(sum(channels) * compression), kernel_size=1)
-        # self.bn4 = nn.BatchNorm2d(int(sum(channels) * compression))
-        # self.conv4 = nn.Conv2d(int(sum(channels) * compression),
-        #                        int(sum(channels) * compression) + growth_rate,
-        #                        kernel_size=3,
-        #                        stride=1,
-        #                        padding=1)
 
     def forward(self, x):
         outputs = [x]
         for i in range(self.num_layers):
             outputs.append(self.layers[i](torch.cat(outputs, dim=1)))
 
-        # x0 = self.comp_conv0(self.relu(self.comp_bn0(x)))
-        # x0 = self.conv0(self.relu(self.bn0(x0)))
-        # x1 = self.comp_conv1(self.relu(self.comp_bn1(torch.cat([x, x0], dim=1))))
-        # x1 = self.conv1(self.relu(self.bn1(x1)))
-        # x2 = self.comp_conv2(self.relu(self.comp_bn2(torch.cat([x, x0, x1], dim=1))))
-        # x2 = self.conv2(self.relu(self.bn2(x2)))
-        # x3 = self.comp_conv3(self.relu(self.comp_bn3(torch.cat([x, x0, x1, x2], dim=1))))
-        # x3 = self.conv3(self.relu(self.bn3(x3)))
-        # x4 = self.comp_conv4(self.relu(self.comp_bn4(torch.cat([x, x0, x1, x2, x3], dim=1))))
-        # x4 = self.conv4(self.relu(self.bn4(x4)))
         return outputs[-1]
 
 
@@ -290,7 +225,7 @@ class DenseNet(nn.Module):
     def __init__(self,
                  in_channels=3,
                  num_classes=10,
-                 layers_list=[6, 8, 6],
+                 layers_list=[6, 7, 6],
                  growth_rate=12,
                  compression=0.5):
         super(DenseNet, self).__init__()

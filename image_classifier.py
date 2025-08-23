@@ -116,8 +116,9 @@ def get_scheduler(cfg, optimizer):
 
 
 class TrainingLogger():
-    def __init__(self, base_log_path):
-        self.log_path = os.path.join(base_log_path, datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
+    def __init__(self, base_log_path, log_name):
+        self.log_path = os.path.join(base_log_path, (log_name + "_" if log_name else "") +
+                                     datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         self.writer = SummaryWriter(self.log_path)
         self.log_dict_step = 0
 
@@ -209,6 +210,7 @@ def validate(epoch, model, dataloader, device, logger):
     tp = confusion_mat.trace()
     total = confusion_mat.sum()
     accuracy = tp.astype(float) / total.astype(float)
+    logger.log_dict({"accuracy": accuracy})
     logger.log_message(f"\n{confusion_mat}")
     logger.log_message(f"Epoch {epoch} Accuracy: {accuracy}")
 
@@ -236,7 +238,7 @@ def train(cfg):
 
     train_dataloader = get_dataloader(cfg["dataloader"])
     test_dataloader = get_dataloader(cfg["dataloader"], True)
-    logger = TrainingLogger(cfg["training"]["log_path"])
+    logger = TrainingLogger(cfg["training"]["log_path"], cfg["training"]["log_name"])
     logger.save_cfg(cfg["cfg_path"])
 
     model.train()
