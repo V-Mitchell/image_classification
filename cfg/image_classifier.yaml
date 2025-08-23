@@ -13,10 +13,11 @@ dataloader:
   persistent_workers: False
 
 training:
-  epochs: 100
+  epochs: 300
   validate_period: 5
   device: 0
   log_path: "./log"
+  log_name: "resnet"
   deterministic: True
   optimizer:
     type: "SGD"
@@ -25,5 +26,5 @@ training:
     weight_decay: 0.0001
   scheduler:
     type: "StepLR"
-    step_size: 80
+    step_size: 250
     gamma: 0.25
