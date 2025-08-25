@@ -165,11 +165,10 @@ def weights_init(m):
             torch.nn.init.constant_(m.bias, 0.01)
 
 
-def bce_loss(preds, labels):
-    label_one_hot = F.one_hot(labels.long(), 10).float()
-    loss = F.binary_cross_entropy(
-        F.softmax(preds, dim=1),
-        label_one_hot,
+def ce_loss(preds, labels):
+    loss = F.cross_entropy(
+        preds,
+        labels.long(),
         reduction="mean",
     )
     return loss
@@ -184,7 +183,7 @@ def train_epoch(epoch, model, dataloader, optimizer, device, logger):
         labels = labels.to(device=device)
         images = images.to(device=device)
         preds = model(images)
-        loss = bce_loss(preds, labels)
+        loss = ce_loss(preds, labels)
         loss.backward()
         optimizer.step()
 
@@ -246,7 +245,8 @@ def train(cfg):
         train_epoch(epoch, model, train_dataloader, optimizer, device, logger)
         if cfg["training"][
                 "validate_period"] > 0 and epoch % cfg["training"]["validate_period"] == 0:
-            validate(epoch, model, test_dataloader, device, logger)
+            with torch.no_grad():
+                validate(epoch, model, test_dataloader, device, logger)
             logger.save_checkpoint(epoch, model)
 
         if scheduler is not None:
