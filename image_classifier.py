@@ -104,6 +104,7 @@ SCHEDULERS = {
     "CosineAnnealingWarmRestarts": torch.optim.lr_scheduler.CosineAnnealingWarmRestarts,
     "StepLR": torch.optim.lr_scheduler.StepLR,
     "MultiStepLR": torch.optim.lr_scheduler.MultiStepLR,
+    "ReduceLROnPlateau": torch.optim.lr_scheduler.ReduceLROnPlateau,
 }
 
 
@@ -214,6 +215,7 @@ def validate(epoch, model, dataloader, device, logger):
     logger.log_message(f"Epoch {epoch} Accuracy: {accuracy}")
 
     model.train()
+    return accuracy
 
 
 def train(cfg):
@@ -246,12 +248,15 @@ def train(cfg):
         if cfg["training"][
                 "validate_period"] > 0 and epoch % cfg["training"]["validate_period"] == 0:
             with torch.no_grad():
-                validate(epoch, model, test_dataloader, device, logger)
+                accuracy = validate(epoch, model, test_dataloader, device, logger)
             logger.save_checkpoint(epoch, model)
 
-        if scheduler is not None:
-            logger.log_dict({"lr": scheduler.get_last_lr()[0]})
-            scheduler.step()
+            if scheduler is not None:
+                if cfg["training"]["scheduler"]["type"] == "ReduceLROnPlateau":
+                    scheduler.step(accuracy)
+                else:
+                    scheduler.step()
+                logger.log_dict({"lr": scheduler.get_last_lr()[0]})
 
     # final validation and model save
     validate(epoch, model, test_dataloader, device, logger)
